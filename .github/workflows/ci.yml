@@ -1,0 +1,142 @@
+# .github/workflows/ci.yml
+#
+# CI for the oas-coverage-agent tool repository.
+# Runs on every push and PR to main.
+#
+# Jobs:
+#   lint        — JS syntax check for all source files
+#   test-unit   — detect-spec, manifest, register-agent unit tests
+#   test-integ  — harness integration + prompt/report helper tests
+#   test-spec   — examples/openapi.yaml and examples/swagger.yaml validation
+#   summary     — aggregate pass/fail gate
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+
+  # ── Lint ────────────────────────────────────────────────────────────────────
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Syntax check
+        run: npm run lint
+      - name: Validate YAML manifests
+        run: |
+          node --input-type=module << 'EOF'
+          import yaml from 'js-yaml';
+          import fs from 'fs';
+          const files = [
+            'manifest.yaml',
+            'manifests/oas-agent.yaml',
+            'manifests/environment.yaml',
+            'manifests/harness.yaml',
+            'examples/.oas-checker.yaml',
+          ];
+          for (const f of files) {
+            const doc = yaml.load(fs.readFileSync(f, 'utf8'));
+            if (!doc) { console.error(`Empty: ${f}`); process.exit(1); }
+            console.log(`✅ ${f}`);
+          }
+          EOF
+      - name: Version sync check
+        run: |
+          node --input-type=module << 'EOF'
+          import yaml from 'js-yaml';
+          import fs from 'fs';
+          const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const man = yaml.load(fs.readFileSync('manifest.yaml', 'utf8'));
+          if (pkg.version !== man.version) {
+            console.error(`Version mismatch: package.json=${pkg.version}, manifest.yaml=${man.version}`);
+            process.exit(1);
+          }
+          console.log(`✅ Version sync: ${pkg.version}`);
+          EOF
+
+  # ── Unit tests ──────────────────────────────────────────────────────────────
+  test-unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: detect-spec tests
+        run: node --test test/detect-spec.test.js
+      - name: manifest tests
+        run: node --test test/manifest.test.js
+      - name: register-agent tests
+        run: node --test test/register-agent.test.js
+
+  # ── Integration tests ────────────────────────────────────────────────────────
+  test-integ:
+    name: Integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Harness integration tests
+        run: node --test test/harness.integration.test.js
+
+  # ── Spec example tests ───────────────────────────────────────────────────────
+  test-spec:
+    name: Spec examples
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Validate example specs
+        run: node --test test/examples.test.js
+
+  # ── Summary gate ─────────────────────────────────────────────────────────────
+  summary:
+    name: All checks passed
+    runs-on: ubuntu-latest
+    needs: [lint, test-unit, test-integ, test-spec]
+    if: always()
+    steps:
+      - name: Check all jobs
+        run: |
+          results='${{ toJSON(needs) }}'
+          echo "$results" | node --input-type=module << 'EOF'
+          import { createReadStream } from 'fs';
+          let data = '';
+          process.stdin.on('data', d => data += d);
+          process.stdin.on('end', () => {
+            const needs = JSON.parse(data);
+            const failed = Object.entries(needs)
+              .filter(([,v]) => v.result !== 'success')
+              .map(([k]) => k);
+            if (failed.length) {
+              console.error('Failed jobs:', failed.join(', '));
+              process.exit(1);
+            }
+            console.log('✅ All jobs passed');
+          });
+          EOF

@@ -1,0 +1,62 @@
+{
+  "name": "oas-coverage-agent",
+  "version": "2.1.0",
+  "description": "AI-powered OpenAPI Spec coverage checker for GitLab CI, built on Claude Managed Agents",
+  "type": "module",
+  "main": "src/harness.js",
+  "bin": {
+    "oas-register": "src/register-agent.js"
+  },
+  "scripts": {
+    "register": "node src/register-agent.js",
+    "start": "node src/harness.js",
+    "watch": "node src/watch.js",
+    "lint": "node --check src/harness.js src/register-agent.js src/detect-spec.js src/watch.js",
+    "test": "node --test test/*.test.js",
+    "test:unit": "node --test test/detect-spec.test.js test/manifest.test.js test/register-agent.test.js",
+    "test:integration": "node --test test/harness.integration.test.js",
+    "test:spec": "node --test test/examples.test.js",
+    "test:watch": "node --test --watch test/*.test.js"
+  },
+  "keywords": [
+    "openapi",
+    "oas",
+    "api-documentation",
+    "gitlab-ci",
+    "claude",
+    "anthropic",
+    "managed-agents",
+    "ci-cd",
+    "code-review",
+    "api-coverage"
+  ],
+  "author": {
+    "name": "khangtoh",
+    "url": "https://github.com/khangtoh"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/khangtoh/oas-coverage-agent.git"
+  },
+  "bugs": {
+    "url": "https://github.com/khangtoh/oas-coverage-agent/issues"
+  },
+  "homepage": "https://github.com/khangtoh/oas-coverage-agent#readme",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "js-yaml": "^4.1.0"
+  },
+  "files": [
+    "src/",
+    "manifests/",
+    "examples/",
+    "docs/",
+    ".gitlab/",
+    "README.md",
+    "LICENSE"
+  ]
+}

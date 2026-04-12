@@ -1,0 +1,117 @@
+# harness.yaml
+#
+# Operational configuration for harness.js.
+# Lives in .gitlab/oas-managed/ alongside the harness code.
+#
+# Controls retry behaviour, session observability, artifact output,
+# and fallback handling — concerns that belong to the harness layer,
+# not the agent definition or the per-repo project config.
+#
+# Change this file when tuning CI behaviour (e.g. retry on transient
+# Managed Agents API errors, adjusting log verbosity for debugging).
+
+# ── Agent & environment references ───────────────────────────────────────────
+
+agent:
+  # Resolved at runtime from OAS_AGENT_ID CI variable.
+  # Hardcoding here is supported but not recommended — use CI variables
+  # so agent upgrades don't require a code change.
+  id_env_var: OAS_AGENT_ID
+
+environment:
+  # Path to the environment manifest (relative to this file's directory).
+  config: ./environment.yaml
+
+# ── Session behaviour ─────────────────────────────────────────────────────────
+
+session:
+  # Wall-clock timeout for the full agent session.
+  # Must be <= the GitLab CI job timeout (set in .gitlab-ci.yml).
+  timeout_minutes: 30
+
+  # Metadata keys injected into every session for Console tracing.
+  # Values are resolved from environment variables at runtime.
+  metadata:
+    gitlab_project:    CI_PROJECT_PATH
+    gitlab_mr_iid:     CI_MERGE_REQUEST_IID
+    gitlab_commit_sha: CI_COMMIT_SHA
+    pipeline_url:      CI_PIPELINE_URL
+    runner_id:         CI_RUNNER_ID
+
+# ── Retry policy ──────────────────────────────────────────────────────────────
+
+retry:
+  # Retry the entire harness flow (environment + session) on transient failures.
+  # Does NOT retry after a session reaches 'failed' or 'timed_out' —
+  # those indicate agent-level issues that require investigation.
+  enabled: true
+
+  # Maximum number of harness-level retry attempts (not counting the first try).
+  max_attempts: 2
+
+  # Seconds to wait between retry attempts (exponential backoff applied).
+  initial_delay_seconds: 10
+  backoff_multiplier: 2
+
+  # HTTP status codes from the Managed Agents API to treat as retryable.
+  retryable_status_codes: [429, 500, 502, 503, 504]
+
+# ── Artifact output ───────────────────────────────────────────────────────────
+
+artifact:
+  # Path for the CI artifact JSON report, relative to REPO_ROOT.
+  report_path: oas-check-report.json
+
+  # Whether to write a verbose session transcript alongside the report.
+  # Useful for debugging agent decisions — disable in production to reduce noise.
+  write_transcript: false
+  transcript_path: oas-session-transcript.txt
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+
+logging:
+  # Log level: "debug" | "info" | "warn" | "error"
+  level: info
+
+  # Whether to emit tool call details (tool name + truncated input) to CI log.
+  # Set to false to reduce log volume on large repos.
+  log_tool_calls: true
+
+  # Max characters of tool input to print in CI log (to avoid flooding).
+  tool_input_truncate: 120
+
+  # Whether to stream agent text output to CI log in real-time.
+  # If false, agent output is only written to the transcript file.
+  stream_agent_output: true
+
+# ── Git commit ────────────────────────────────────────────────────────────────
+
+git:
+  # Git user identity for the auto-commit (fallback if .oas-checker.yaml absent)
+  author_name:  OAS Agent Bot
+  author_email: ci-oas-bot@company.com
+
+  # Remote name to push to.
+  remote: origin
+
+  # Whether to sign the commit with GPG (requires runner to have GPG configured).
+  gpg_sign: false
+
+# ── Observability ─────────────────────────────────────────────────────────────
+
+observability:
+  # Emit a GitLab MR note (comment) summarising the OAS changes.
+  # Requires GITLAB_TOKEN to have api scope in addition to write_repository.
+  post_mr_comment: false
+
+  # Comment template. Placeholders: {count}, {paths}, {session_id}, {artifact_url}
+  mr_comment_template: |
+    ### 📄 OAS Coverage Report
+
+    The OAS Coverage Agent found **{count}** undocumented route(s) and added them to `openapi.yaml`.
+
+    | Path | Status |
+    |------|--------|
+    {table_rows}
+
+    [View full report]({artifact_url}) · Session: `{session_id}`

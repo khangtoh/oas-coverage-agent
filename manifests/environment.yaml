@@ -1,0 +1,73 @@
+# environment.yaml
+#
+# Defines the cloud container environment in which the OAS agent runs.
+# This is consumed by harness.js when calling POST /v1/environments.
+#
+# Separating this from the agent definition (oas-agent.yaml) follows the
+# Managed Agents model: Agent = brain (prompt + tools), Environment = body
+# (runtime, filesystem, network). They evolve independently.
+#
+# To use a different runtime for a specific repo, override the environment
+# path via OAS_ENVIRONMENT_CONFIG in CI variables.
+#
+# Versioning: bump `version` when changing packages or network rules.
+# Old sessions continue against the environment spec used at session creation.
+
+version: "1.0"
+
+container:
+  # Anthropic-maintained base image — includes core unix tooling
+  image: anthropic/agent-runtime:latest
+
+  # Pre-installed language runtimes and tools available to the agent's bash tool.
+  # The agent uses these to run find, ripgrep, and any language-specific tooling.
+  packages:
+    - nodejs       # Node.js + npm (Express, Fastify, NestJS, etc.)
+    - python3      # Python + pip (Flask, FastAPI, Django, etc.)
+    - golang       # Go toolchain (Gin, Echo, Fiber, etc.)
+    - ripgrep      # Fast recursive grep — agent uses rg for pattern matching
+    - git          # Required by some package managers for dep resolution
+    - jq           # JSON processing in bash — useful for agent shell commands
+
+  # Network rules applied to the container.
+  # Air-gapped by default: the agent reads only from the mounted repo.
+  # Enable outbound selectively if the agent needs to fetch schemas or resolve
+  # remote $ref URIs in the existing openapi.yaml.
+  network_access:
+    outbound: false   # no internet access — agent works from mounted volume only
+    # outbound: true
+    # allowed_hosts:   # uncomment to allowlist specific hosts for $ref resolution
+    #   - schema.company.com
+    #   - raw.githubusercontent.com
+
+mounts:
+  # The repo is mounted read-write so the agent can patch openapi.yaml directly.
+  # The harness reads the patched file from this same path after session completion.
+  - source_type: local_path       # runner's filesystem (CI_PROJECT_DIR)
+    destination: /repo            # path inside the container
+    read_only: false              # agent must write the patched spec
+
+  # Optional: mount a shared schema registry for $ref resolution
+  # Useful when multiple services share common schema definitions.
+  # - source_type: remote_url
+  #   source: https://schema.company.com/registry/v1/common-schemas.yaml
+  #   destination: /schemas/common.yaml
+  #   read_only: true
+
+# Environment variables injected into the container's shell environment.
+# The agent can reference these in bash tool calls.
+# CI-specific values (OAS_PATH, SRC_DIRS) are merged in at runtime by harness.js.
+env:
+  REPO_ROOT: /repo
+  # OAS_PATH and SRC_DIRS are injected by harness.js from CI variables
+
+# Resource constraints (optional — defaults are applied by the platform)
+resources:
+  # Increase memory if the agent handles very large repos with many source files
+  memory_mb: 2048       # default: 1024
+  cpu_millicores: 1000  # default: 500 (1 vCPU)
+
+# Session-level timeout — the wall-clock limit for the full agent run.
+# Billing stops when the session completes, not when this timeout fires.
+# Set conservatively; the agent typically completes in 3–8 minutes.
+timeout_minutes: 30

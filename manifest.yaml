@@ -1,0 +1,50 @@
+# manifest.yaml
+#
+# Single source of truth for the oas-coverage-agent deployment state.
+#
+# Updated automatically by: npm run register
+# Committed and tagged with every release.
+# Read by harness.js to resolve the agent ID — consumer repos that
+# pin to a version tag get the correct agent ID without any CI variable.
+#
+# DO NOT edit agent.current manually. Run `npm run register` instead.
+
+name: oas-coverage-agent
+version: "2.1.0"         # must match package.json version
+schema_version: 1         # manifest format version — increment if structure changes
+
+# ── Agent registration state ──────────────────────────────────────────────────
+#
+# `current` is the live agent used by all sessions on this version.
+# `history` is an append-only log — never delete entries.
+#
+# Updated automatically by register-agent.js.
+
+agent:
+  current:
+    id: ""                           # populated by `npm run register`
+    tool_version: "2.1.0"
+    model: "claude-sonnet-4-20250514"
+    registered_at: ""                # ISO 8601, populated by `npm run register`
+    registered_by: ""                # git user.name at registration time
+  history: []
+
+# ── Compatibility matrix ──────────────────────────────────────────────────────
+#
+# Used by harness.js to validate the runtime environment before starting
+# a session. Bumping these values is a breaking change — increment schema_version.
+
+compatibility:
+  managed_agents_beta: "managed-agents-2026-04-01"   # required request header
+  node_min: "20"                                       # minimum Node.js version
+  spec_formats:
+    - swagger_2      # swagger: "2.0"
+    - openapi_30     # openapi: "3.0.x"
+    - openapi_31     # openapi: "3.1.x"
+
+# ── Release metadata ──────────────────────────────────────────────────────────
+
+release:
+  date: "2026-04-10"
+  tag: "v2.1.0"
+  changelog: "https://github.com/khangtoh/oas-coverage-agent/blob/main/CHANGELOG.md#210--2026-04-10"

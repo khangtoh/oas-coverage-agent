@@ -1,0 +1,10 @@
+spec:
+  path: api/swagger.yaml
+  oas_version: "2.0"
+scan:
+  include: [src/handlers, src/routes]
+generate:
+  exclude_routes:
+    - DELETE /internal/reset
+commit:
+  message: "chore(api): add {count} missing paths [skip ci]"

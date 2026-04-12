@@ -1,0 +1,52 @@
+# .gitlab/oas-coverage.yml
+#
+# Include in your microservice repo's .gitlab-ci.yml:
+#
+#   include:
+#     - project: 'your-org/oas-coverage-agent'
+#       ref: v2.1.0          # pin to a version tag — never use `main`
+#       file: '.gitlab/oas-coverage.yml'
+#
+# The pinned tag contains manifest.yaml with the registered agent ID.
+# No OAS_AGENT_ID CI variable is needed for standard setups.
+#
+# Required CI/CD variables (Settings -> CI/CD -> Variables):
+#   ANTHROPIC_API_KEY   Anthropic API key              masked, protected
+#   GITLAB_TOKEN        write_repository project token  masked, protected
+#
+# Optional overrides:
+#   OAS_AGENT_ID        Override the agent ID from manifest.yaml
+#   OAS_PATH            Override spec path (default: auto-detect)
+#   SRC_DIRS            Override scan dirs (default: src,app,lib,routes,api)
+
+oas-coverage:
+  stage: review
+  image: node:20-alpine
+
+  rules:
+    - if: '$CI_PIPELINE_SOURCE == "merge_request_event"'
+
+  variables:
+    OAS_TOOL_REF: "v2.1.0"    # mirrors the include ref above — used in job name
+
+  before_script:
+    - apk add --no-cache git
+    - git config user.email "ci-oas-bot@gitlab.com"
+    - git config user.name "OAS Agent Bot"
+    - git remote set-url origin
+        "https://oauth2:${GITLAB_TOKEN}@${CI_SERVER_HOST}/${CI_PROJECT_PATH}.git"
+    # Install tool deps from the pinned version cloned by GitLab
+    - npm ci --silent --prefix .oas-agent
+
+  script:
+    # harness.js reads agent ID from .oas-agent/manifest.yaml automatically
+    - node .oas-agent/src/harness.js
+
+  artifacts:
+    when: always
+    paths:
+      - oas-check-report.json
+    expose_as: "OAS Coverage Report"
+    expire_in: 30 days
+
+  timeout: 30 minutes

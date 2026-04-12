@@ -1,0 +1,956 @@
+openapi: 3.1.0
+
+# ─────────────────────────────────────────────────────────────────────────────
+# order-service — OpenAPI 3.1 Specification
+#
+# Sections marked [AGENT-GENERATED] were produced by the OAS Coverage Agent
+# during MR pipeline execution and committed automatically.
+# Sections marked [HAND-AUTHORED] were written by engineers.
+# ─────────────────────────────────────────────────────────────────────────────
+
+info:
+  title: Order Service API
+  version: 1.4.0
+  description: |
+    Manages the full lifecycle of customer orders across Southeast Asian markets
+    (SG, ID, PH). Handles order creation, fulfilment routing, status tracking,
+    and webhook delivery to downstream services.
+  contact:
+    name: Platform Engineering
+    email: platform@company.com
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+
+servers:
+  - url: https://api.company.com/v1
+    description: Production (ap-southeast-1)
+  - url: https://api.id.company.com/v1
+    description: Production (ap-southeast-3 — Indonesia)
+  - url: https://api-staging.company.com/v1
+    description: Staging
+
+tags:
+  - name: Orders
+    description: Order lifecycle — create, read, update, cancel
+  - name: Fulfilment
+    description: Warehouse routing and delivery assignment
+  - name: Webhooks
+    description: Outbound event delivery to registered endpoints
+  - name: Health
+    description: Service health and readiness probes
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Components — shared schemas, responses, parameters, security
+# ─────────────────────────────────────────────────────────────────────────────
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT issued by IAM Identity Center
+
+  parameters:
+    orderId:
+      name: orderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+      description: Unique order identifier
+
+    marketCode:
+      name: X-Market-Code
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [SG, ID, PH]
+      description: Target market for the request
+
+    correlationId:
+      name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Caller-supplied trace ID propagated through the request chain
+
+  schemas:
+    # ── Core domain objects ───────────────────────────────────────────────────
+
+    OrderStatus:
+      type: string
+      enum:
+        - pending
+        - confirmed
+        - processing
+        - shipped
+        - delivered
+        - cancelled
+        - refunded
+      description: Valid order lifecycle states
+
+    Money:
+      type: object
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 49.90
+        currency:
+          type: string
+          pattern: "^[A-Z]{3}$"
+          example: SGD
+
+    Address:
+      type: object
+      required: [line1, city, countryCode, postalCode]
+      properties:
+        line1:
+          type: string
+          maxLength: 255
+        line2:
+          type: string
+          maxLength: 255
+        city:
+          type: string
+        state:
+          type: string
+        countryCode:
+          type: string
+          pattern: "^[A-Z]{2}$"
+          example: SG
+        postalCode:
+          type: string
+          example: "018956"
+
+    OrderItem:
+      type: object
+      required: [productId, sku, quantity, unitPrice]
+      properties:
+        productId:
+          type: string
+          format: uuid
+        sku:
+          type: string
+          example: ELEC-HDPHN-BLK-L
+        name:
+          type: string
+          example: Wireless Headphones
+        quantity:
+          type: integer
+          minimum: 1
+        unitPrice:
+          $ref: "#/components/schemas/Money"
+        discountAmount:
+          $ref: "#/components/schemas/Money"
+
+    Order:
+      type: object
+      required: [id, status, items, shippingAddress, subtotal, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        externalRef:
+          type: string
+          description: Caller-supplied idempotency key / external reference
+          example: shopify-order-9128371
+        status:
+          $ref: "#/components/schemas/OrderStatus"
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        shippingAddress:
+          $ref: "#/components/schemas/Address"
+        subtotal:
+          $ref: "#/components/schemas/Money"
+        shippingFee:
+          $ref: "#/components/schemas/Money"
+        tax:
+          $ref: "#/components/schemas/Money"
+        total:
+          $ref: "#/components/schemas/Money"
+        fulfilmentWarehouseId:
+          type: string
+          format: uuid
+          description: Assigned after order confirmation
+        trackingNumber:
+          type: string
+          description: Carrier tracking number (set when shipped)
+        notes:
+          type: string
+          maxLength: 1000
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        cancelledAt:
+          type: string
+          format: date-time
+
+    CreateOrderRequest:
+      type: object
+      required: [items, shippingAddress]
+      properties:
+        externalRef:
+          type: string
+          maxLength: 128
+          description: Idempotency key — duplicate submissions with same key return original order
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/OrderItem"
+        shippingAddress:
+          $ref: "#/components/schemas/Address"
+        notes:
+          type: string
+          maxLength: 1000
+
+    UpdateOrderRequest:
+      type: object
+      minProperties: 1
+      properties:
+        shippingAddress:
+          $ref: "#/components/schemas/Address"
+        notes:
+          type: string
+          maxLength: 1000
+
+    CancelOrderRequest:
+      type: object
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum:
+            - customer_request
+            - inventory_unavailable
+            - payment_failed
+            - fraud_suspected
+            - duplicate_order
+        notes:
+          type: string
+          maxLength: 500
+
+    # ── Fulfilment ─────────────────────────────────────────────────────────────
+
+    FulfilmentRoute:
+      type: object
+      required: [orderId, warehouseId, estimatedShipDate]
+      properties:
+        orderId:
+          type: string
+          format: uuid
+        warehouseId:
+          type: string
+          format: uuid
+        warehouseName:
+          type: string
+          example: SG-Central-01
+        carrier:
+          type: string
+          example: DHL Express
+        serviceLevel:
+          type: string
+          enum: [standard, express, same_day]
+        estimatedShipDate:
+          type: string
+          format: date
+        estimatedDeliveryDate:
+          type: string
+          format: date
+
+    # ── Webhooks ───────────────────────────────────────────────────────────────
+
+    WebhookSubscription:
+      type: object
+      required: [id, url, events, active]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+          example: https://partner.example.com/hooks/orders
+        events:
+          type: array
+          items:
+            type: string
+            enum:
+              - order.created
+              - order.confirmed
+              - order.shipped
+              - order.delivered
+              - order.cancelled
+        secret:
+          type: string
+          description: HMAC-SHA256 signing secret (write-only — never returned after creation)
+          writeOnly: true
+        active:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateWebhookRequest:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum:
+              - order.created
+              - order.confirmed
+              - order.shipped
+              - order.delivered
+              - order.cancelled
+        secret:
+          type: string
+          minLength: 32
+          description: HMAC-SHA256 signing secret for payload verification
+
+    # ── Shared responses ───────────────────────────────────────────────────────
+
+    PaginatedOrders:
+      type: object
+      required: [data, pagination]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Order"
+        pagination:
+          type: object
+          required: [total, page, pageSize, hasNext]
+          properties:
+            total:
+              type: integer
+            page:
+              type: integer
+            pageSize:
+              type: integer
+            hasNext:
+              type: boolean
+            cursor:
+              type: string
+
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: ORDER_NOT_FOUND
+        message:
+          type: string
+          example: Order with the specified ID does not exist
+        details:
+          type: object
+          additionalProperties: true
+        traceId:
+          type: string
+          format: uuid
+
+    HealthStatus:
+      type: object
+      required: [status, version, uptime]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, unavailable]
+        version:
+          type: string
+          example: 1.4.0
+        uptime:
+          type: integer
+          description: Seconds since last restart
+        checks:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [ok, fail]
+              latencyMs:
+                type: integer
+
+  responses:
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Unauthorized:
+      description: Missing or invalid bearer token
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    Forbidden:
+      description: Insufficient permissions for this operation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    UnprocessableEntity:
+      description: Request body failed validation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds until the rate limit window resets
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Security — applied globally; individual operations can override
+# ─────────────────────────────────────────────────────────────────────────────
+
+security:
+  - bearerAuth: []
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Paths
+# ─────────────────────────────────────────────────────────────────────────────
+
+paths:
+
+  # ── /health ─────────────────────────────────────────────────── [AGENT-GENERATED]
+  /health:
+    get:
+      operationId: getHealth
+      summary: Liveness probe
+      description: >
+        Returns service health and dependency status. Used by Kubernetes liveness
+        probes and uptime monitors. Does not require authentication.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+              example:
+                status: ok
+                version: 1.4.0
+                uptime: 86412
+                checks:
+                  postgres: { status: ok, latencyMs: 2 }
+                  redis: { status: ok, latencyMs: 1 }
+                  sqs: { status: ok, latencyMs: 14 }
+        "503":
+          description: Service is unavailable or degraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+
+  # ── /ready ──────────────────────────────────────────────────── [AGENT-GENERATED]
+  /ready:
+    get:
+      operationId: getReadiness
+      summary: Readiness probe
+      description: >
+        Confirms the service is ready to accept traffic. Returns 503 during
+        startup, migration runs, or graceful shutdown. Used by Kubernetes
+        readiness probes.
+      tags: [Health]
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: true
+        "503":
+          description: Service is not ready
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ready:
+                    type: boolean
+                    example: false
+                  reason:
+                    type: string
+                    example: database migration in progress
+
+  # ── /orders ─────────────────────────────────────────────────────────────────
+  /orders:
+
+    # [HAND-AUTHORED]
+    get:
+      operationId: listOrders
+      summary: List orders
+      description: >
+        Returns a paginated list of orders for the authenticated caller.
+        Supports filtering by status, date range, and market.
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/marketCode"
+        - $ref: "#/components/parameters/correlationId"
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/OrderStatus"
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2026-01-01"
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date
+          example: "2026-03-31"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - name: pageSize
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+        - name: cursor
+          in: query
+          schema:
+            type: string
+          description: Opaque pagination cursor from previous response
+      responses:
+        "200":
+          description: Paginated order list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PaginatedOrders"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+    # [HAND-AUTHORED]
+    post:
+      operationId: createOrder
+      summary: Create order
+      description: >
+        Creates a new order. Supply `externalRef` for idempotent submission —
+        duplicate requests with the same key return the original order with
+        HTTP 200 rather than creating a duplicate.
+      tags: [Orders]
+      parameters:
+        - $ref: "#/components/parameters/marketCode"
+        - $ref: "#/components/parameters/correlationId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateOrderRequest"
+            example:
+              externalRef: shopify-order-9128371
+              items:
+                - productId: c1a2b3d4-e5f6-7890-abcd-ef1234567890
+                  sku: ELEC-HDPHN-BLK-L
+                  name: Wireless Headphones
+                  quantity: 1
+                  unitPrice:
+                    amount: 49.90
+                    currency: SGD
+              shippingAddress:
+                line1: "1 Marina Boulevard"
+                city: Singapore
+                countryCode: SG
+                postalCode: "018981"
+      responses:
+        "201":
+          description: Order created successfully
+          headers:
+            Location:
+              schema:
+                type: string
+              description: URL of the created order resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "200":
+          description: Duplicate submission — original order returned (idempotent)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+
+  # ── /orders/{orderId} ────────────────────────────────────────────────────────
+  /orders/{orderId}:
+
+    parameters:
+      - $ref: "#/components/parameters/orderId"
+      - $ref: "#/components/parameters/correlationId"
+
+    # [HAND-AUTHORED]
+    get:
+      operationId: getOrder
+      summary: Get order by ID
+      description: Returns full order detail including current status and item breakdown.
+      tags: [Orders]
+      responses:
+        "200":
+          description: Order found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    # [AGENT-GENERATED]
+    patch:
+      operationId: updateOrder
+      summary: Update order
+      description: >
+        Partially updates a pending order. Only orders in `pending` status can
+        be updated. Attempts to update orders in any other state return 409.
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateOrderRequest"
+      responses:
+        "200":
+          description: Order updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Order is not in a state that allows updates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: ORDER_NOT_EDITABLE
+                message: Only orders in pending status can be updated
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+    # [AGENT-GENERATED]
+    delete:
+      operationId: deleteOrder
+      summary: Hard-delete order (internal)
+      description: >
+        Permanently deletes an order record. Only available to internal service
+        accounts with the `orders:admin` scope. Consumer-facing cancellation
+        should use `POST /orders/{orderId}/cancel` instead.
+      tags: [Orders]
+      responses:
+        "204":
+          description: Order deleted — no content returned
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Order cannot be deleted in its current state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── /orders/{orderId}/cancel ─────────────────────────────────── [AGENT-GENERATED]
+  /orders/{orderId}/cancel:
+    parameters:
+      - $ref: "#/components/parameters/orderId"
+      - $ref: "#/components/parameters/correlationId"
+
+    post:
+      operationId: cancelOrder
+      summary: Cancel order
+      description: >
+        Transitions an order to `cancelled` status. Eligible states: `pending`,
+        `confirmed`. Orders in `processing`, `shipped`, or `delivered` cannot
+        be cancelled via this endpoint and require a returns flow.
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelOrderRequest"
+            example:
+              reason: customer_request
+              notes: Customer changed their mind before dispatch
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Order is not in a cancellable state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                code: ORDER_NOT_CANCELLABLE
+                message: Orders in 'shipped' status cannot be cancelled
+
+  # ── /orders/{orderId}/status ─────────────────────────────────── [AGENT-GENERATED]
+  /orders/{orderId}/status:
+    parameters:
+      - $ref: "#/components/parameters/orderId"
+      - $ref: "#/components/parameters/correlationId"
+
+    get:
+      operationId: getOrderStatus
+      summary: Get order status
+      description: >
+        Lightweight endpoint returning only the current status and tracking
+        info. Intended for high-frequency polling by frontends. Lower latency
+        than GET /orders/{orderId} as it bypasses item expansion.
+      tags: [Orders]
+      responses:
+        "200":
+          description: Order status
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [orderId, status, updatedAt]
+                properties:
+                  orderId:
+                    type: string
+                    format: uuid
+                  status:
+                    $ref: "#/components/schemas/OrderStatus"
+                  trackingNumber:
+                    type: string
+                  estimatedDeliveryDate:
+                    type: string
+                    format: date
+                  updatedAt:
+                    type: string
+                    format: date-time
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+    # [AGENT-GENERATED]
+    put:
+      operationId: setOrderStatus
+      summary: Force-set order status (internal)
+      description: >
+        Directly sets order status. Internal use only — used by the fulfilment
+        worker and event consumers to advance state machine. Not exposed to
+        external callers. Requires `orders:admin` scope.
+      tags: [Orders]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  $ref: "#/components/schemas/OrderStatus"
+                trackingNumber:
+                  type: string
+                notes:
+                  type: string
+      responses:
+        "200":
+          description: Status updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Order"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  # ── /orders/{orderId}/fulfilment ─────────────────────────────── [AGENT-GENERATED]
+  /orders/{orderId}/fulfilment:
+    parameters:
+      - $ref: "#/components/parameters/orderId"
+      - $ref: "#/components/parameters/correlationId"
+
+    get:
+      operationId: getFulfilmentRoute
+      summary: Get fulfilment routing
+      description: >
+        Returns the warehouse assignment and estimated delivery window for a
+        confirmed order. Available once order status is `confirmed` or later.
+      tags: [Fulfilment]
+      responses:
+        "200":
+          description: Fulfilment route
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FulfilmentRoute"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          description: Order not yet confirmed — no fulfilment route assigned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  # ── /webhooks ────────────────────────────────────────────────── [AGENT-GENERATED]
+  /webhooks:
+    get:
+      operationId: listWebhooks
+      summary: List webhook subscriptions
+      description: Returns all active and inactive webhook subscriptions for the caller.
+      tags: [Webhooks]
+      responses:
+        "200":
+          description: List of webhook subscriptions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WebhookSubscription"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+    post:
+      operationId: createWebhook
+      summary: Create webhook subscription
+      description: >
+        Registers a new endpoint to receive order lifecycle events. The secret
+        is used to sign payloads with HMAC-SHA256 — store it securely, it will
+        not be returned after creation.
+      tags: [Webhooks]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateWebhookRequest"
+            example:
+              url: https://partner.example.com/hooks/orders
+              events:
+                - order.created
+                - order.shipped
+                - order.delivered
+              secret: s3cr3t-hmac-key-at-least-32-chars-long
+      responses:
+        "201":
+          description: Webhook subscription created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookSubscription"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+
+  # ── /webhooks/{webhookId} ────────────────────────────────────── [AGENT-GENERATED]
+  /webhooks/{webhookId}:
+    parameters:
+      - name: webhookId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+
+    delete:
+      operationId: deleteWebhook
+      summary: Delete webhook subscription
+      description: Permanently removes a webhook subscription. In-flight deliveries are not affected.
+      tags: [Webhooks]
+      responses:
+        "204":
+          description: Webhook deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"

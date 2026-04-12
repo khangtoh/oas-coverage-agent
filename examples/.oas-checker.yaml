@@ -1,0 +1,165 @@
+# .oas-checker.yaml
+#
+# Per-repository configuration for the OAS Coverage Agent.
+# Place this file at the root of each microservice repo.
+#
+# The harness reads this file at the start of each session and passes its
+# values to the agent as part of the task prompt. This decouples per-repo
+# settings from CI variables — engineers configure their service here
+# rather than in GitLab project settings.
+#
+# If this file is absent, the harness falls back to CI variable defaults.
+
+# ── Source scanning ───────────────────────────────────────────────────────────
+
+scan:
+  # Directories to scan for route definitions (relative to repo root).
+  # Overrides the SRC_DIRS CI variable for this repo.
+  include:
+    - src/routes
+    - src/controllers
+    - src/api
+    - app/handlers
+
+  # Patterns to exclude from scanning (glob syntax).
+  # These are in addition to the agent's built-in exclusions
+  # (node_modules, __pycache__, dist, test files, etc.)
+  exclude:
+    - src/routes/internal/**   # internal routes not exposed in OAS
+    - src/api/legacy/**        # legacy endpoints — documented separately
+    - "**/*.generated.*"       # auto-generated files
+    - "**/*.mock.*"
+
+  # File extensions to consider. Leave empty to use agent defaults.
+  # Useful when the repo uses non-standard extensions.
+  extensions: []
+  # extensions: [.mjs, .cjs, .tsx]  # example: include additional extensions
+
+# ── Spec location & format ────────────────────────────────────────────────────
+
+spec:
+  # Path to the spec file (relative to repo root).
+  # Overrides OAS_PATH CI variable.
+  # If omitted, harness auto-discovers: swagger.yaml > swagger.json > openapi.yaml > openapi.json
+  path: openapi.yaml
+
+  # Spec format to target when GENERATING new entries.
+  # If omitted, harness auto-detects from the existing file's swagger:/openapi: key.
+  #
+  # Accepted values:
+  #   "2.0"        → Swagger 2.0  (definitions, parameters[in=body], x-nullable, integer response codes)
+  #   "3.0"        → OpenAPI 3.0  (components/schemas, requestBody, nullable: true, quoted response codes)
+  #   "3.1"        → OpenAPI 3.1  (components/schemas, requestBody, type: [T,"null"], quoted response codes)
+  #
+  # Only set this explicitly to OVERRIDE auto-detection, e.g. when the spec
+  # file does not yet exist (new service) or has a non-standard header.
+  oas_version: "3.1.0"
+
+# ── OAS metadata injected when creating a spec from scratch ──────────────────
+# Only used when spec.path does not exist yet (first run for a new service).
+# Ignored when patching an existing spec.
+
+info:
+  title: Order Service API
+  version: 1.0.0
+  description: Manages the full lifecycle of customer orders.
+  contact:
+    name: Platform Engineering
+    email: platform@company.com
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+
+servers:
+  - url: https://api.company.com/v1
+    description: Production (ap-southeast-1)
+  - url: https://api.id.company.com/v1
+    description: Production (ap-southeast-3 — Indonesia)
+  - url: https://api-staging.company.com/v1
+    description: Staging
+
+# ── Generation behaviour ──────────────────────────────────────────────────────
+
+generate:
+  # Tag assignment strategy for generated operations.
+  # "resource"  — infer from path segment (e.g. /orders → Orders) [default]
+  # "directory" — infer from the source file's directory name
+  # "file"      — infer from the source file's base name (sans extension)
+  tag_strategy: resource
+
+  # Explicit tag mappings — override inferred tags for specific path prefixes.
+  tag_overrides:
+    /webhooks: Webhooks
+    /health: Health
+    /ready: Health
+
+  # HTTP status codes to always include in generated responses,
+  # in addition to the success code inferred from the handler.
+  default_error_responses:
+    - 401  # Unauthorized
+    - 422  # Unprocessable Entity
+    - 429  # Too Many Requests
+    - 500  # Internal Server Error
+
+  # Common headers to inject into every generated operation's parameters.
+  # Useful for propagating tracing headers, market codes, etc.
+  common_headers:
+    - name: X-Correlation-ID
+      in: header
+      required: false
+      schema:
+        type: string
+        format: uuid
+      description: Caller-supplied trace ID propagated through the request chain
+    - name: X-Market-Code
+      in: header
+      required: true
+      schema:
+        type: string
+        enum: [SG, ID, PH]
+      description: Target market for the request
+
+  # Component schema inference hints.
+  # When a handler returns or accepts a field matching one of these names,
+  # the agent will reference the named $ref instead of inlining the schema.
+  schema_hints:
+    # field name pattern → $ref target
+    "*.price":     "#/components/schemas/Money"
+    "*.total":     "#/components/schemas/Money"
+    "*.address":   "#/components/schemas/Address"
+    "*Address":    "#/components/schemas/Address"
+
+  # Routes to exclude from OAS generation entirely.
+  # Use this for internal-only endpoints that must not appear in the spec.
+  exclude_routes:
+    - DELETE /orders/{orderId}       # internal admin only — excluded from public spec
+    - PUT /orders/{orderId}/status   # internal state machine transition
+
+# ── Validation ────────────────────────────────────────────────────────────────
+
+validate:
+  # Fail the pipeline (non-zero exit) if routes are found with no coverage
+  # and the agent could not generate entries for them.
+  fail_on_uncovered: true
+
+  # Warn (but don't fail) if the spec contains paths with no matching
+  # implementation — i.e. documented routes that no longer exist in code.
+  warn_on_orphaned_paths: true
+
+  # Minimum required coverage percentage. Pipeline fails if below this threshold.
+  # Set to 0 to disable threshold enforcement.
+  min_coverage_percent: 90
+
+# ── Commit behaviour ──────────────────────────────────────────────────────────
+
+commit:
+  # Message template for the auto-commit. Supports these placeholders:
+  #   {count}   — number of paths generated
+  #   {paths}   — comma-separated list of generated path strings
+  #   {branch}  — current MR branch name
+  message: "chore(oas): add {count} missing path(s) [skip ci]"
+
+  # Author identity for the auto-commit.
+  author:
+    name: OAS Agent Bot
+    email: ci-oas-bot@company.com
