@@ -1,4 +1,11 @@
-# Task: Migrate CI Integration to Docker Image
+# T-001: Migrate CI Integration to Docker Image
+
+| Field | Value |
+|-------|-------|
+| **ID** | T-001 |
+| **Status** | Open |
+| **Target version** | 2.3.0 |
+| **Related decisions** | none — this is a CI infrastructure fix, not governed by any ADR |
 
 ## Problem
 

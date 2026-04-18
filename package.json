@@ -1,6 +1,6 @@
 {
   "name": "oas-coverage-agent",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "AI-powered OpenAPI Spec coverage checker for GitLab CI, built on Claude Managed Agents",
   "type": "module",
   "main": "src/harness.js",

@@ -32,7 +32,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-
+## [2.1.0] — 2026-04-01
 
 ### Added — Swagger 2.0 backwards compatibility
 
@@ -64,7 +64,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
-
+## [2.0.0] — 2026-03-20
 
 ### Changed — Architecture
 

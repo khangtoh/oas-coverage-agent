@@ -10,7 +10,7 @@
 # DO NOT edit agent.current manually. Run `npm run register` instead.
 
 name: oas-coverage-agent
-version: "2.1.0"         # must match package.json version
+version: "2.2.0"         # must match package.json version
 schema_version: 1         # manifest format version — increment if structure changes
 
 # ── Agent registration state ──────────────────────────────────────────────────
@@ -23,7 +23,7 @@ schema_version: 1         # manifest format version — increment if structure c
 agent:
   current:
     id: ""                           # populated by `npm run register`
-    tool_version: "2.1.0"
+    tool_version: "2.2.0"
     model: "claude-sonnet-4-20250514"
     registered_at: ""                # ISO 8601, populated by `npm run register`
     registered_by: ""                # git user.name at registration time
@@ -46,5 +46,5 @@ compatibility:
 
 release:
   date: "2026-04-10"
-  tag: "v2.1.0"
-  changelog: "https://github.com/khangtoh/oas-coverage-agent/blob/main/CHANGELOG.md#210--2026-04-10"
+  tag: "v2.2.0"
+  changelog: "https://github.com/khangtoh/oas-coverage-agent/blob/main/CHANGELOG.md#220--2026-04-10"
