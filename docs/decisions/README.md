@@ -29,7 +29,7 @@ ADR.Related Tasks ──────► links to task files
 **Slug convention:**
 Tasks that directly implement an ADR use the filename `adr-NNN-<slug>.md`
 so the association is visible from the filesystem without opening either file.
-Tasks not governed by any ADR use a plain `<slug>.md` name.
+Tasks not governed by any ADR use a plain `<slug>.md` name (stored in `docs/exec-plans/active/`).
 
 ## Decisions
 

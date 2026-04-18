@@ -46,6 +46,7 @@ GitLab CI → harness.js (3 API calls)
 
 ```
 oas-coverage-agent/
+├── ARCHITECTURE.md           Component overview, layers, data flow, design decisions
 ├── src/
 │   ├── harness.js            CI entrypoint — Managed Agents lifecycle only
 │   └── register-agent.js     One-time agent registration script
@@ -57,7 +58,13 @@ oas-coverage-agent/
 │   ├── openapi.yaml          Full OAS 3.1 example (order-service, 9 paths, 14 schemas)
 │   └── .oas-checker.yaml     Per-repo project config — copy to each microservice
 ├── docs/
-│   └── DESIGN.md             Technical design doc with 5 Mermaid data flow diagrams
+│   ├── DESIGN.md             Technical design doc with 5 Mermaid data flow diagrams
+│   ├── SECURITY.md           Threat model, secrets handling, sandbox guarantees
+│   ├── RELIABILITY.md        Retry policy, failure modes, environment lifecycle
+│   ├── PLANS.md              Roadmap — in-flight and upcoming features
+│   ├── decisions/            Architecture Decision Records (ADRs)
+│   ├── exec-plans/           Implementation tasks (active/ and completed/)
+│   └── references/           Condensed API references for AI agent context
 ├── .github/
 │   └── workflows/ci.yml      GitHub Actions CI for this repo
 └── .gitlab/
@@ -259,7 +266,7 @@ harness.js
 GitLab: pipeline status + artifact on MR
 ```
 
-See [`docs/DESIGN.md`](docs/DESIGN.md) for the full technical design document with Mermaid sequence diagrams, state machines, and component breakdowns.
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for a component overview, or [`docs/DESIGN.md`](docs/DESIGN.md) for the full technical design with Mermaid sequence diagrams and state machines.
 
 ---
 

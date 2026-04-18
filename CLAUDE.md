@@ -73,20 +73,20 @@ Document all manifest changes in `CHANGELOG.md`. Update `docs/DESIGN.md` Mermaid
 
 ## Current tasks
 
-To answer "what is being worked on right now", read the **In Progress** section of
-`docs/tasks/README.md`. Every row there is an active task. If the section is empty, nothing is in progress.
+To answer "what is being worked on right now", look at the files in
+`docs/exec-plans/active/`. Every file there is an active task. If the directory is empty, nothing is in progress.
 
 ## Technology Decisions and Task Association
 
 ADRs (in `docs/decisions/`) are the **feature specs**: they document why a technology was chosen,
 what patterns are required, and contain **binding agent instructions** for that technology area.
 
-Tasks (in `docs/tasks/`) are the **implementation units**: concrete work items that implement or
-are constrained by an ADR.
+Tasks (in `docs/exec-plans/`) are the **implementation units**: concrete work items that implement or
+are constrained by an ADR. Active work lives in `docs/exec-plans/active/`; completed work is archived in `docs/exec-plans/completed/`.
 
 **Association rules — follow these exactly:**
 
-1. A task governed by an ADR is named `docs/tasks/adr-NNN-<slug>.md` — the slug encodes the ADR.
+1. A task governed by an ADR is named `docs/exec-plans/active/adr-NNN-<slug>.md` — the slug encodes the ADR.
 2. That task's `Related decisions` field links to the ADR and says how it constrains the work.
 3. The ADR's `Related Tasks` table lists that task. The ADR is authoritative for this list.
 4. Tasks not governed by any ADR use a plain name and set `Related decisions: none`.
@@ -95,7 +95,7 @@ are constrained by an ADR.
 - Start from a task → follow `Related decisions` to find the spec and binding constraints.
 - Start from a spec → check `Related Tasks` to find all implementation work.
 - See `docs/decisions/README.md` for the full decision ledger and association model diagram.
-- See `docs/tasks/README.md` for the task ledger.
+- See `docs/exec-plans/README.md` for the task ledger.
 
 **Before implementing any feature involving scheduling, orchestration, retries, fan-out, or long-running jobs:**
 read `docs/decisions/adr-001-temporal.md` and follow its Agent Instructions.
