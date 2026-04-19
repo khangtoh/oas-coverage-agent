@@ -20,7 +20,7 @@ Security considerations for the OAS Coverage Agent — threat model, secrets han
 - All secrets are set as **GitLab CI/CD Variables** (`Masked + Protected`).
 - They are injected as environment variables at job start by the GitLab Runner — never written to disk, never committed, never logged.
 - `harness.js` reads them via `process.env` only. No secrets are written into `manifest.yaml` or any config file.
-- The `GITLAB_TOKEN` is embedded in the git remote URL (`https://oauth2:${GITLAB_TOKEN}@...`) for the duration of the job process only. It is not written to `.git/config` or any file.
+- The `GITLAB_TOKEN` is embedded in the git remote URL via `git remote set-url` in `.gitlab/oas-coverage.yml`. Git persists this URL in `.git/config` within the job workspace for the duration of the job. The workspace is ephemeral (GitLab Runner cleans it after the job), but the token is at-rest in `.git/config` while the job is running. Do not collect the workspace as a CI artifact.
 
 ### Least-privilege principle
 

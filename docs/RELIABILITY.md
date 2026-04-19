@@ -6,19 +6,21 @@ Retry policy, failure modes, environment lifecycle guarantees, and observability
 
 ## Retry Policy
 
-Configured in `manifests/harness.yaml` under `retry:`.
+> **Note:** `manifests/harness.yaml` declares a retry configuration, but `src/harness.js` does not currently load or implement it. API failures in `createEnvironment` and `startSession` propagate directly to `main().catch`, which logs and exits. Retry logic is planned as part of the Temporal workflow layer (see [ADR-001](./decisions/adr-001-temporal.md)).
+
+The retry settings below document the intended policy once Temporal Activities wrap the harness lifecycle calls:
 
 | Setting | Value | Notes |
 |---------|-------|-------|
-| `enabled` | `true` | Retry is on by default |
+| `enabled` | `true` | Retry on by default |
 | `max_attempts` | 2 | First try + 2 retries = 3 total attempts |
 | `initial_delay_seconds` | 10 | Wait before first retry |
 | `backoff_multiplier` | 2 | Exponential: 10s → 20s |
 | Retryable HTTP codes | `429, 500, 502, 503, 504` | Transient Managed Agents API errors |
 
-**What is retried:** the entire harness flow — create environment, start session, stream. If any API call fails with a retryable status code, the harness tears down the environment (if created) and starts again from the beginning.
+**What will be retried (once implemented):** the full harness flow — create environment, start session, stream. On a retryable failure the environment is torn down (if created) and the attempt restarts from the beginning.
 
-**What is NOT retried:**
+**What will NOT be retried:**
 - Sessions that reach `failed` status — these indicate an agent-level issue requiring investigation, not a transient failure.
 - Sessions that reach `timed_out` status — extend `timeout_minutes` in `manifests/harness.yaml` if the repo is large.
 - Git commit/push failures — these are logged and fail the job without retry.
@@ -42,7 +44,9 @@ Configured in `manifests/harness.yaml` under `retry:`.
 
 ## Artifact Guarantee
 
-`oas-check-report.json` is **always written**, even on failure. The GitLab CI job uses `artifacts: when: always`, so the report is uploaded regardless of job exit code.
+`oas-check-report.json` is written on all **controlled** failures — any code path that reaches `fail()` in `harness.js` writes the report before exiting. The GitLab CI job uses `artifacts: when: always`, so the report is uploaded regardless of job exit code.
+
+**Limitation:** unhandled exceptions that bypass `fail()` (for example, a rejected Managed Agents API call thrown before the session starts) hit `main().catch`, which logs and exits without writing the artifact. Consumers should treat a missing artifact as an early infrastructure failure, not a successful no-op.
 
 On success:
 ```json
@@ -57,7 +61,7 @@ On success:
 }
 ```
 
-On failure (`fail()` called in harness):
+On controlled failure (`fail()` called in harness):
 ```json
 {
   "success": false,
