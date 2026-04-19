@@ -22,6 +22,7 @@ Tasks and ADRs have a bidirectional relationship. See `docs/decisions/README.md`
 | ID | Task | Version | Decision |
 |----|------|---------|----------|
 | [T-001](active/t-001-ci-docker-integration.md) | Migrate CI integration to Docker image | 2.3.0 | none |
+| [T-002](active/adr-002-pr-lifecycle-agents-md.md) | PR lifecycle rule + AGENTS.md cross-vendor layer | 2.3.0 | [ADR-002](../decisions/adr-002-doc-structure.md) |
 
 ## Completed
 
