@@ -36,6 +36,7 @@ Tasks not governed by any ADR use a plain `<slug>.md` name (stored in `docs/exec
 | ADR | Title | Status | Date | Tasks |
 |-----|-------|--------|------|-------|
 | [ADR-001](./adr-001-temporal.md) | Temporal for workflow orchestration | Adopted | 2026-04-18 | none yet |
+| [ADR-002](./adr-002-doc-structure.md) | Engineering doc structure — OpenAI harness pattern alignment | Adopted | 2026-04-19 | none |
 
 > The Tasks column is a derived view. The ADR file's Related Tasks section is authoritative.
 
