@@ -73,14 +73,9 @@ Document all manifest changes in `CHANGELOG.md`. Update `docs/DESIGN.md` Mermaid
 
 ## PR Workflow Rules
 
+See `AGENTS.md` § PR Lifecycle for the canonical rule that applies to all agents.
+
 `.claude/settings.json` contains a `PostToolUse` hook that fires after every `mcp__github__create_pull_request` call and injects a mandatory reminder to subscribe. When that reminder arrives, call `subscribe_pr_activity` immediately with the PR number — do not defer this.
-
-Once subscribed, handle incoming `<github-webhook-activity>` events as follows:
-- **Review comments**: Investigate. Fix and push if clear and non-destructive; use `AskUserQuestion` if ambiguous or architecturally significant.
-- **CI failures**: Investigate and fix if tractable, then push. Surface to user if root cause is unclear.
-- **Duplicate or no-action events**: State so and skip.
-
-**Codex agents**: Codex (OpenAI) has no equivalent `subscribe_pr_activity` tool and cannot receive webhook events. For Codex sessions, PR monitoring must be done manually — ask the user to notify you of new activity or check the PR explicitly when requested.
 
 ## Current tasks
 
