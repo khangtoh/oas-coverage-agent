@@ -1,0 +1,226 @@
+# Managed Agents API — Reference
+
+Condensed reference for the Anthropic Managed Agents API used by this project.
+Intended for AI agent context injection — covers the endpoints, shapes, and event types that `src/harness.js` uses.
+
+All requests require:
+- `Authorization: Bearer $ANTHROPIC_API_KEY`
+- `anthropic-version: 2023-06-01`
+- `anthropic-beta: managed-agents-2026-04-01`
+
+Base URL: `https://api.anthropic.com`
+
+---
+
+## Environments
+
+### POST /v1/environments
+
+Provision an isolated cloud container with the repo mounted.
+
+**Request body:**
+```json
+{
+  "name": "string",
+  "description": "string (optional)",
+  "container": {
+    "image": "anthropic/agent-runtime:latest",
+    "packages": ["nodejs", "python3", "golang", "ripgrep"],
+    "network_access": { "outbound": false }
+  },
+  "mounts": [
+    {
+      "source_type": "local_path",
+      "source": "/absolute/path/on/runner",
+      "destination": "/repo",
+      "read_only": false
+    }
+  ],
+  "env": {
+    "KEY": "value"
+  }
+}
+```
+
+**Response:**
+```json
+{ "id": "env_01ABCxyz..." }
+```
+
+---
+
+### DELETE /v1/environments/{environment_id}
+
+Terminate an environment and stop billing. Environments auto-expire after 24h if not explicitly terminated.
+
+**Response:** `200 OK` (no body)
+
+---
+
+## Sessions
+
+### POST /v1/sessions
+
+Start an agent session inside a provisioned environment.
+
+**Request body:**
+```json
+{
+  "agent_id": "agt_01ABCxyz...",
+  "environment_id": "env_01ABCxyz...",
+  "metadata": {
+    "any_key": "any_value"
+  },
+  "initial_event": {
+    "type": "user",
+    "content": "string — the task prompt injected as the first user message"
+  }
+}
+```
+
+**Response:**
+```json
+{ "id": "ses_01ABCxyz..." }
+```
+
+---
+
+### GET /v1/sessions/{session_id}/stream
+
+Stream session events as Server-Sent Events (SSE). The connection stays open until the session reaches a terminal state.
+
+**Response:** `text/event-stream`
+
+Each event is a line of the form `data: {...}\n\n`.
+
+---
+
+## SSE Event Types
+
+### `session.status`
+
+Emitted when session state changes.
+
+```json
+{
+  "type": "session.status",
+  "status": "running | completed | failed | timed_out",
+  "error": { "message": "string" }
+}
+```
+
+Terminal statuses: `completed`, `failed`, `timed_out`. On terminal status, close the stream.
+
+---
+
+### `message.text.delta`
+
+Streamed text from the agent's response.
+
+```json
+{
+  "type": "message.text.delta",
+  "delta": "string"
+}
+```
+
+Concatenate all deltas to reconstruct the full agent output. The last line of output is the JSON report.
+
+---
+
+### `tool.use`
+
+Emitted when the agent invokes a tool.
+
+```json
+{
+  "type": "tool.use",
+  "name": "bash | file_read | file_write | file_edit",
+  "input": {
+    "command": "string (bash only)",
+    "path": "string (file tools)",
+    "content": "string (file_write)"
+  }
+}
+```
+
+---
+
+### `tool.result`
+
+Emitted after a tool call completes.
+
+```json
+{
+  "type": "tool.result",
+  "content": "string",
+  "is_error": false
+}
+```
+
+If `is_error: true`, `content` contains the error message.
+
+---
+
+### `session.checkpoint`
+
+Emitted periodically to mark a resumable point. The platform auto-resumes if the SSE connection drops.
+
+```json
+{
+  "type": "session.checkpoint",
+  "checkpoint_id": "chk_01ABCxyz..."
+}
+```
+
+---
+
+## Agents
+
+### POST /v1/agents
+
+Register a new agent definition (one-time setup). Used by `src/register-agent.js`.
+
+**Request body:**
+```json
+{
+  "name": "string",
+  "model": "claude-sonnet-4-20250514",
+  "system_prompt": "string",
+  "tools": ["bash", "file_read", "file_write", "file_edit"]
+}
+```
+
+**Response:**
+```json
+{
+  "id": "agt_01ABCxyz...",
+  "created_at": "2026-01-01T00:00:00Z"
+}
+```
+
+---
+
+## Error Codes
+
+| HTTP Status | Meaning | Retryable? |
+|-------------|---------|------------|
+| 400 | Bad request — malformed body | No |
+| 401 | Invalid API key | No |
+| 404 | Agent or environment not found | No |
+| 429 | Rate limited | Yes — back off and retry |
+| 500 | Internal server error | Yes |
+| 502 | Bad gateway | Yes |
+| 503 | Service unavailable | Yes |
+| 504 | Gateway timeout | Yes |
+
+Retryable codes (429, 500, 502, 503, 504) are configured in `manifests/harness.yaml` under `retry.retryable_status_codes`.
+
+---
+
+## Billing
+
+- Billed by **active session-hour** while an environment exists.
+- Idle time (waiting for tool results) is **not billed**.
+- Always call `DELETE /v1/environments/{id}` when done. Environments auto-expire after 24h as a fallback.
+- Typical MR run: 3–8 minutes active → ~$0.004–$0.011 per run.

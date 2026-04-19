@@ -4,6 +4,8 @@
 **Architecture:** Claude Managed Agents  
 **Status:** Beta  
 
+> For a high-level summary of components, layers, and design decisions, see [`ARCHITECTURE.md`](../ARCHITECTURE.md) at the repo root. This document contains the detailed Mermaid diagrams, state machines, and API reference.
+
 ---
 
 ## Overview
