@@ -71,6 +71,17 @@ MR opened → GitLab CI → harness.js
 
 Document all manifest changes in `CHANGELOG.md`. Update `docs/DESIGN.md` Mermaid diagrams if the data flow changes.
 
+## PR Workflow Rules
+
+**After creating any pull request**, immediately call `subscribe_pr_activity` to watch for review comments, CI results, and replies. Do not wait for the user to ask — subscribe as part of the PR creation flow.
+
+Once subscribed, handle incoming `<github-webhook-activity>` events as follows:
+- **Review comments**: Investigate each one. If the fix is clear and non-destructive, apply it and push. If ambiguous or architecturally significant, use `AskUserQuestion` before acting.
+- **CI failures**: Investigate the failure, fix it if tractable, then push. If root cause is unclear, surface it to the user.
+- **Duplicate or no-action events**: State so and skip.
+
+**Codex agents**: Codex (OpenAI) does not have an equivalent `subscribe_pr_activity` tool. For Codex-based sessions, PR monitoring must be done manually — ask the user to notify you of new comments or check the PR status explicitly when requested.
+
 ## Current tasks
 
 To answer "what is being worked on right now", look at the files in
