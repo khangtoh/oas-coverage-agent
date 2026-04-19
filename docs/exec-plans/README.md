@@ -17,11 +17,28 @@ Tasks and ADRs have a bidirectional relationship. See `docs/decisions/README.md`
 
 ---
 
+## File naming conventions
+
+| File pattern | Purpose |
+|---|---|
+| `active/<task-id>-<slug>.md` | Active task spec not governed by an ADR |
+| `active/adr-NNN-<slug>.md` | Active task spec directly implementing or bounded by ADR-NNN |
+| `active/<task-id>-<letter>-<slug>.md` | Sub-task spec, e.g. `t002-a-handshake-contract.md` |
+| `active/<task-id>-plan-<agent-name>.md` | Implementation plan proposed by a specific agent |
+
+**Sub-tasks** break a parent task into sequenced implementation steps.
+Use letters `a`, `b`, `c` ... to indicate order. Each sub-task follows the same template as a task spec and carries a `Parent task` field linking back to the parent.
+
+**Task plans** are separate from the task spec. An agent proposes a plan by creating one of these files; it does not modify the task spec. Multiple agents can propose competing plans for the same task.
+
+---
+
 ## Active
 
 | ID | Task | Version | Decision |
 |----|------|---------|----------|
 | [T-001](active/t-001-ci-docker-integration.md) | Migrate CI integration to Docker image | 2.3.0 | none |
+| [T-002](active/t-002-claude-ma-handshake-command.md) | Add local Claude Managed Agents handshake command | 2.3.0 | none |
 
 ## Completed
 
@@ -52,6 +69,8 @@ Tasks and ADRs have a bidirectional relationship. See `docs/decisions/README.md`
 | **Status** | Open / In Progress / Done |
 | **Target version** | x.y.z |
 | **Related decisions** | [ADR-NNN: <Title>](../../decisions/adr-NNN-<slug>.md) — one line on how it constrains this task. Or: `none` |
+| **Assignee** | agent name / handle |
+| **Validation required** | `npm run lint`, `npm test` |
 
 ## Problem
 Why this work is needed. What is broken or missing.

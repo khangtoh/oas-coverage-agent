@@ -41,6 +41,7 @@ Adopt a constrained subset of the OpenAI harness pattern. Every item was evaluat
 
 | Pattern | Adopted As | Rationale |
 |---------|-----------|-----------|
+| `AGENTS.md` at root | `AGENTS.md` | Multi-agent collaboration needs a tool-neutral contract. `AGENTS.md` defines shared rules such as `auto`, `ask`, and `skip`; `CLAUDE.md` remains Claude-specific guidance. |
 | `ARCHITECTURE.md` at root | `ARCHITECTURE.md` | Architecture was buried in `docs/DESIGN.md`. Root placement makes it the first thing a new engineer or agent finds; `DESIGN.md` remains for detailed Mermaid diagrams. |
 | `docs/RELIABILITY.md` | `docs/RELIABILITY.md` | The project makes real API calls against billed infrastructure and commits to live MR branches. Retry policy, failure modes, environment lifecycle guarantees, and tuning guidance were not documented anywhere. |
 | `docs/SECURITY.md` | `docs/SECURITY.md` | `ANTHROPIC_API_KEY` and `GITLAB_TOKEN` are passed through CI; the agent runs in a cloud container with the repo mounted. Threat model, secrets handling, sandbox guarantees, and `[skip ci]` safety are genuinely necessary — not cosmetic. |
@@ -53,7 +54,6 @@ Adopt a constrained subset of the OpenAI harness pattern. Every item was evaluat
 
 | Pattern | Decision | Rationale |
 |---------|----------|-----------|
-| `AGENTS.md` at root | Superseded by `CLAUDE.md` | `CLAUDE.md` is the Claude Code convention for AI agent guidance. Renaming to `AGENTS.md` would break the Claude Code toolchain. Both serve the same purpose; keeping `CLAUDE.md` is the correct choice for this stack. |
 | `docs/FRONTEND.md` | Not applicable | The project has no frontend. |
 | `docs/PRODUCT_SENSE.md` | Not necessary | Product philosophy for a single-purpose CI tool is fully expressed through architecture decisions. A separate product-sense doc would be filler that drifts from the actual design. |
 | `docs/QUALITY_SCORE.md` | Not necessary | No formal quality rubric exists or is needed. The test suite — 112 tests across 5 suites, run with `npm test` — is the quality gate. A score doc would duplicate what CI already enforces. |
@@ -64,6 +64,7 @@ Adopt a constrained subset of the OpenAI harness pattern. Every item was evaluat
 ## Consequences
 
 - `docs/tasks/` is deleted; all internal references updated to `docs/exec-plans/`
+- `AGENTS.md` is the shared multi-agent collaboration contract; `CLAUDE.md` points to it and keeps Claude-specific guidance
 - `CLAUDE.md` navigation pointers updated to `docs/exec-plans/` throughout
 - New contributors and AI agents land at `ARCHITECTURE.md` for a system overview, then follow links to `docs/DESIGN.md` for diagrams
 - Agents editing `manifests/` or `src/harness.js` can find relevant runbooks at `docs/RELIABILITY.md` and `docs/SECURITY.md`
