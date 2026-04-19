@@ -6,7 +6,7 @@
 | **Status** | Open |
 | **Target version** | 2.3.0 |
 | **Related decisions** | `none` |
-| **Assignee** | unassigned |
+| **Assignee** | unassigned — must be set before implementation starts (`task_assignment_required: auto` in `AGENTS.md`) |
 | **Validation required** | `npm run lint`, `npm test` |
 
 ## Problem
@@ -52,7 +52,8 @@ success or failure result for the developer.
 - [ ] The command validates the JSON shape and fails clearly on malformed output
 - [ ] The command reports whether `package.json` version and `manifest.yaml` version match
 - [ ] The command does not modify repository files
-- [ ] The README or contributor docs explain required environment variables and expected output
+- [ ] `CONTRIBUTING.md` explains required environment variables and expected output
+- [ ] Running `npm run handshake:claude-ma` with a valid `ANTHROPIC_API_KEY` and registered agent completes with exit 0 and prints a success line
 
 ## Out of Scope
 

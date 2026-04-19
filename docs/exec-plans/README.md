@@ -28,6 +28,8 @@ Tasks and ADRs have a bidirectional relationship. See `docs/decisions/README.md`
 
 **Sub-tasks** break a parent task into sequenced implementation steps.
 Use letters `a`, `b`, `c` ... to indicate order. Each sub-task follows the same template as a task spec and carries a `Parent task` field linking back to the parent.
+Sub-tasks are not added to the ledger tables. Discover them by globbing `<task-id>-[a-z]-*.md` or via the parent task's plan file.
+Use `<task-id>-[a-z]-*.md` rather than `<task-id>-*.md` so plan files are excluded.
 
 **Task plans** are separate from the task spec. An agent proposes a plan by creating one of these files; it does not modify the task spec. Multiple agents can propose competing plans for the same task.
 
