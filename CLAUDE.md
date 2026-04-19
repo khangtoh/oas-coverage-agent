@@ -71,6 +71,12 @@ MR opened → GitLab CI → harness.js
 
 Document all manifest changes in `CHANGELOG.md`. Update `docs/DESIGN.md` Mermaid diagrams if the data flow changes.
 
+## PR Workflow Rules
+
+See `AGENTS.md` § PR Lifecycle for the canonical rule that applies to all agents.
+
+`.claude/settings.json` contains a `PostToolUse` hook that fires after every `mcp__github__create_pull_request` call and injects a mandatory reminder to subscribe. When that reminder arrives, call `subscribe_pr_activity` immediately with the PR number — do not defer this.
+
 ## Current tasks
 
 To answer "what is being worked on right now", look at the files in

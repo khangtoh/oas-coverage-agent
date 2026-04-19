@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "mcp__github__create_pull_request",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '{\"hookSpecificOutput\": {\"hookEventName\": \"PostToolUse\", \"additionalContext\": (\"PR #\" + (.tool_response.number // 0 | tostring) + \" was just created. REQUIRED: call subscribe_pr_activity for this PR number immediately before anything else. Do not skip this step.\")}}'",
+            "timeout": 10,
+            "statusMessage": "Queuing PR subscription reminder..."
+          }
+        ]
+      }
+    ]
+  }
+}

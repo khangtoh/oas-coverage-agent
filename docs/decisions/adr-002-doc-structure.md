@@ -48,12 +48,12 @@ Adopt a constrained subset of the OpenAI harness pattern. Every item was evaluat
 | `docs/exec-plans/tech-debt-tracker.md` | `docs/exec-plans/tech-debt-tracker.md` | Seven known debt items existed across task files and comments with no central view. A tracker makes the full picture — impact, effort, target version — visible in one place. |
 | `docs/references/` with `*-llms.txt` files | `docs/references/managed-agents-api-llms.txt` | Condensed external API references for AI agent context injection is the pattern most directly relevant to this project. Without it, agents (including Claude Code itself) hallucinate Managed Agents API endpoints, event types, and error codes. |
 | `docs/PLANS.md` | `docs/PLANS.md` | The roadmap (Docker image v2.3, Temporal v3.0) was implicit across CHANGELOG entries and task files. A single roadmap doc makes prioritisation visible and connects in-flight tasks to future milestones. |
+| `AGENTS.md` at root | `AGENTS.md` (alongside `CLAUDE.md`) | Initial assessment was wrong on two counts. (1) `AGENTS.md` is now the cross-vendor open standard backed by the Agentic AI Foundation (Linux Foundation initiative, co-founded by Anthropic, OpenAI, and Block — Dec 2025), read natively by Codex, Windsurf, Devin, Cursor, Gemini CLI, Claude Code, and ~60,000 open-source projects. (2) It complements `CLAUDE.md`, not replaces it: `AGENTS.md` carries rules that apply to any agent; `CLAUDE.md` augments those rules with Claude Code–specific tooling. Creating `AGENTS.md` does not touch `CLAUDE.md` or break any Claude Code behaviour. |
 
 ## Not Adopted
 
 | Pattern | Decision | Rationale |
 |---------|----------|-----------|
-| `AGENTS.md` at root | Superseded by `CLAUDE.md` | `CLAUDE.md` is the Claude Code convention for AI agent guidance. Renaming to `AGENTS.md` would break the Claude Code toolchain. Both serve the same purpose; keeping `CLAUDE.md` is the correct choice for this stack. |
 | `docs/FRONTEND.md` | Not applicable | The project has no frontend. |
 | `docs/PRODUCT_SENSE.md` | Not necessary | Product philosophy for a single-purpose CI tool is fully expressed through architecture decisions. A separate product-sense doc would be filler that drifts from the actual design. |
 | `docs/QUALITY_SCORE.md` | Not necessary | No formal quality rubric exists or is needed. The test suite — 112 tests across 5 suites, run with `npm test` — is the quality gate. A score doc would duplicate what CI already enforces. |
@@ -69,6 +69,7 @@ Adopt a constrained subset of the OpenAI harness pattern. Every item was evaluat
 - Agents editing `manifests/` or `src/harness.js` can find relevant runbooks at `docs/RELIABILITY.md` and `docs/SECURITY.md`
 - Tech debt is tracked centrally at `docs/exec-plans/tech-debt-tracker.md`; new debt items belong there, not in task comments or commit messages
 - When a future pattern from the OpenAI harness (or another reference) is proposed, this ADR's "Not Adopted" table is the first check — if a pattern was explicitly rejected, the decision record explains why
+- `AGENTS.md` lives at root alongside `CLAUDE.md`: it holds agent-agnostic rules; `CLAUDE.md` holds Claude Code–specific augmentations
 
 ## Related Tasks
 
@@ -77,6 +78,7 @@ Adopt a constrained subset of the OpenAI harness pattern. Every item was evaluat
 | Task | Description | Status |
 |------|-------------|--------|
 | — | Doc restructure executed directly; no open task | Done — 2026-04-19 |
+| [T-002: PR lifecycle rule + AGENTS.md](../../docs/exec-plans/active/adr-002-pr-lifecycle-agents-md.md) | Add cross-vendor PR subscription rule to `AGENTS.md`; correct AGENTS.md decision in this ADR | In Progress |
 
 ## Agent Instructions
 
