@@ -2,6 +2,9 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Read `AGENTS.md` first for the repo's collaboration rules, including `auto`,
+`ask`, and `skip` execution modes.
+
 ## Commands
 
 ```bash
